@@ -7,7 +7,7 @@ COPY pom.xml .
 
 # Pre-download dependencies (faster rebuilds)
 RUN mvn -B -q -DskipTests dependency:go-offline
-
+  
 # Copy project source
 COPY src ./src
 
