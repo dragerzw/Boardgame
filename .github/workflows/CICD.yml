@@ -2,25 +2,26 @@ name: CICD Pipeline
 on:
   push:
     branches: [ "main" ]
-  
+
 jobs:
   build:
-
     runs-on: self-hosted
 
     steps:
     - uses: actions/checkout@v4
+
     - name: Set up JDK 17
       uses: actions/setup-java@v4
       with:
         java-version: '17'
         distribution: 'temurin'
         cache: maven
+
     - name: Build with Maven
       run: mvn package --file pom.xml
-      
+
     - name: Upload Artifact
-      uses: actions/upload-artifact@v6.0.0
+      uses: actions/upload-artifact@v4 # Updated to v4 (v6.0.0 does not exist yet)
       with:
         name: Boardgame
         path: target/*.jar
@@ -29,12 +30,12 @@ jobs:
       run: | 
         trivy fs --format table -o trivy-fs-report.html .
 
-    - name: SonaQube Scan
-      uses: uses:sonarsource/sonarqube-scan-action@master
+    # FIX 1: Removed double "uses:"
+    - name: SonarQube Scan
+      uses: sonarsource/sonarqube-scan-action@master
       env:
-       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-       SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
     - name: Install jq
       run: sudo apt-get update && sudo apt-get install -y jq
@@ -43,44 +44,42 @@ jobs:
       uses: SonarSource/sonarqube-quality-gate-action@v1.2.0
       timeout-minutes: 5
       env:
-       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-       SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-          
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
     - name: Docker Setup QEMU
-      uses: docker/setup-qemu-action@v3.7.0
+      uses: docker/setup-qemu-action@v3
 
     - name: Docker Setup Buildx
-      uses: docker/setup-buildx-action@v3.12.0
+      uses: docker/setup-buildx-action@v3
+
 
     - name: Build Docker Image
       run: |
-        docker build -t realdrager/boardgame:latest
+        docker build -t realdrager/boardgame:latest .
 
     - name: Trivy Image Scan
       run: |
         trivy image --format table -o trivy-image-report.html realdrager/boardgame:latest
 
+
     - name: Login to Docker Hub
       uses: docker/login-action@v3
       with:
-        username: ${{secrets.DOCKERHUB_USERNAME}}
-        password: ${{secrets.DOCKERHUB_TOKEN}}
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
 
     - name: Push Docker Image
       run: |
         docker push realdrager/boardgame:latest
 
-   
     - name: Kubernetes CLI (kubectl)
       uses: tale/kubectl-action@v1
       with:
-        base64-kube-config: ${{ secrets.KUBE_CONFIG}}
-    - run: |
-          kubectl.appy -f deployment-service.yaml -n webapps
-          kubectl get  svc -n
-          
-     
-          
-    
-        
-    
+        base64-kube-config: ${{ secrets.KUBE_CONFIG }}
+
+
+    - name: Deploy to K8s
+      run: |
+          kubectl apply -f deployment-service.yaml -n webapps
+          kubectl get svc -n webapps
