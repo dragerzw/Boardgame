@@ -23,6 +23,47 @@ This web application displays lists of board games and their reviews. While anyo
 - Twitter Bootstrap
 - Maven
 
+
+graph TD
+    %% Define Styles
+    classDef main fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
+    classDef sec fill:#ffebee,stroke:#b71c1c,stroke-width:2px;
+    classDef deploy fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px;
+
+    %% Nodes
+    Start([User Push to Main]) -->|Trigger| Checkout[Checkout Code & Install Utilities]
+    Checkout --> Build[Build JAR (Maven)]
+    
+    subgraph Security_Checks [Security & Quality Gates]
+        direction TB
+        Build --> TrivyFS[Trivy FS Scan]
+        Build --> Sonar[SonarQube Analysis]
+        Sonar --> QGate{Quality Gate Passed?}
+    end
+
+    QGate -- No --> Fail([Pipeline Failed])
+    QGate -- Yes --> DockerBuild[Docker Build]
+    TrivyFS --> DockerBuild
+
+    subgraph Containerization
+        DockerBuild --> TrivyImg[Trivy Image Scan]
+        TrivyImg --> DockerPush[Push to Docker Hub]
+    end
+
+    subgraph Deployment
+        DockerPush --> K8sAuth[Auth via KubeConfig]
+        K8sAuth --> K8sApply[kubectl apply -f deployment.yaml]
+    end
+
+    K8sApply --> End([App Live in K8s])
+
+    %% Apply Styles
+    class Start,Checkout,Build,DockerBuild,DockerPush main;
+    class TrivyFS,Sonar,QGate,Fail,TrivyImg sec;
+    class K8sAuth,K8sApply,End deploy;
+
+
+
 ## Features
 
 - Full-Stack Application
