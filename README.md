@@ -1,94 +1,133 @@
-# BoardgameListingWebApp
+**🎲 Boardgame - End-to-End DevSecOps Pipeline**
 
-## Description
+**📖 Project Overview**
 
-**Board Game Database Full-Stack Web Application.**
-This web application displays lists of board games and their reviews. While anyone can view the board game lists and reviews, they are required to log in to add/ edit the board games and their reviews. The 'users' have the authority to add board games to the list and add reviews, and the 'managers' have the authority to edit/ delete the reviews on top of the authorities of users.  
+This project demonstrates a production-grade **DevSecOps CI/CD pipeline** for a Java-based "Boardgame" application.
 
-## Technologies
+By leveraging **GitHub Actions** on a self-hosted runner, the pipeline automates the entire lifecycle from code commit to Kubernetes deployment. It adheres to a **"Shift-Left"** security philosophy, integrating SAST (Static Application Security Testing) via SonarQube and Container Vulnerability Scanning via Trivy to arrest vulnerabilities _before_ they reach production.
 
-- Java
-- Spring Boot
-- Amazon Web Services(AWS) EC2
-- Thymeleaf
-- Thymeleaf Fragments
-- HTML5
-- CSS
-- JavaScript
-- Spring MVC
-- JDBC
-- H2 Database Engine (In-memory)
-- JUnit test framework
-- Spring Security
-- Twitter Bootstrap
-- Maven
+**🏗️ Architecture**
+
+The pipeline implements a "Security-First" workflow. If any quality gate (code coverage, bugs) or security threshold (critical CVEs) is breached, the build fails immediately.
+
+<img width="1125" height="781" alt="image" src="https://github.com/user-attachments/assets/29deb711-2057-4778-b107-7225706ef704" />
 
 
-graph TD
-    %% Define Styles
-    classDef main fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
-    classDef sec fill:#ffebee,stroke:#b71c1c,stroke-width:2px;
-    classDef deploy fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px;
+**🛠️ Technology Stack**
 
-    %% Nodes
-    Start([User Push to Main]) -->|Trigger| Checkout[Checkout Code & Install Utilities]
-    Checkout --> Build[Build JAR (Maven)]
-    
-    subgraph Security_Checks [Security & Quality Gates]
-        direction TB
-        Build --> TrivyFS[Trivy FS Scan]
-        Build --> Sonar[SonarQube Analysis]
-        Sonar --> QGate{Quality Gate Passed?}
-    end
+| **Category** | **Technology** | **Usage** |
+| --- | --- | --- |
+| **Application** | Java 17 (Temurin) | Core application logic. |
+| **CI/CD** | GitHub Actions | Workflow orchestration on self-hosted runners. |
+| **Build Tool** | Maven | Dependency management and compilation. |
+| **Code Quality** | SonarQube | SAST: Detects bugs, code smells, and security hotspots. |
+| **Security** | Trivy | Scans filesystem (dependencies) and Docker images for CVEs. |
+| **Containerization** | Docker | Packages the application into a portable image. |
+| **Orchestration** | Kubernetes (K8s) | Deployment, scaling, and management of containerized apps. |
 
-    QGate -- No --> Fail([Pipeline Failed])
-    QGate -- Yes --> DockerBuild[Docker Build]
-    TrivyFS --> DockerBuild
+**⚙️ Environment Setup**
 
-    subgraph Containerization
-        DockerBuild --> TrivyImg[Trivy Image Scan]
-        TrivyImg --> DockerPush[Push to Docker Hub]
-    end
+**1\. Self-Hosted Runner Configuration**
 
-    subgraph Deployment
-        DockerPush --> K8sAuth[Auth via KubeConfig]
-        K8sAuth --> K8sApply[kubectl apply -f deployment.yaml]
-    end
+To replicate this pipeline, a Linux server (Ubuntu 20.04/22.04) is required to act as the GitHub Runner.
 
-    K8sApply --> End([App Live in K8s])
+Pre-requisite Software:
 
-    %% Apply Styles
-    class Start,Checkout,Build,DockerBuild,DockerPush main;
-    class TrivyFS,Sonar,QGate,Fail,TrivyImg sec;
-    class K8sAuth,K8sApply,End deploy;
+Run the following on the runner to prepare the build environment:
 
+Bash
 
+\# Update and install Docker
 
-## Features
+sudo apt-get update
 
-- Full-Stack Application
-- UI components created with Thymeleaf and styled with Twitter Bootstrap
-- Authentication and authorization using Spring Security
-  - Authentication by allowing the users to authenticate with a username and password
-  - Authorization by granting different permissions based on the roles (non-members, users, and managers)
-- Different roles (non-members, users, and managers) with varying levels of permissions
-  - Non-members only can see the boardgame lists and reviews
-  - Users can add board games and write reviews
-  - Managers can edit and delete the reviews
-- Deployed the application on AWS EC2
-- JUnit test framework for unit testing
-- Spring MVC best practices to segregate views, controllers, and database packages
-- JDBC for database connectivity and interaction
-- CRUD (Create, Read, Update, Delete) operations for managing data in the database
-- Schema.sql file to customize the schema and input initial data
-- Thymeleaf Fragments to reduce redundancy of repeating HTML elements (head, footer, navigation)
+sudo apt-get install -y docker.io
 
-## How to Run
+sudo chmod 666 /var/run/docker.sock
 
-1. Clone the repository
-2. Open the project in your IDE of choice
-3. Run the application
-4. To use initial user data, use the following credentials.
-  - username: bugs    |     password: bunny (user role)
-  - username: daffy   |     password: duck  (manager role)
-5. You can also sign-up as a new user and customize your role to play with the application! 😊
+\# Install Java 17 (Required for Maven build)
+
+sudo apt-get install -y openjdk-17-jdk
+
+\# Install SonarScanner dependencies
+
+sudo apt-get install -y unzip jq
+
+**2\. Kubernetes Cluster**
+
+Ensure a K8s cluster is active (Minikube, EKS, AKS, or Kubeadm).
+
+- **Create Namespace:** kubectl create namespace webapps
+- **Permissions:** Ensure the Service Account used by the runner has RoleBinding permissions to deploy to the webapps namespace.
+
+**3\. Repository Secrets**
+
+Navigate to **Settings > Secrets and variables > Actions** and configure:
+
+| **Secret** | **Description** |
+| --- | --- |
+| DOCKERHUB_USERNAME | Your Docker Hub ID. |
+| DOCKERHUB_TOKEN | Docker Hub Access Token (Read/Write). |
+| SONAR_TOKEN | Authentication token generated in SonarQube. |
+| SONAR_HOST_URL | Public URL of your SonarQube server. |
+| KUBE_CONFIG | Base64 encoded kubeconfig file (\`cat ~/.kube/config |
+
+**🛡️ Pipeline Stages**
+
+- **Initialization:** Installs lightweight utilities (unzip, jq) required for parsing security reports.
+- **Build:** Compiles the Java application using Maven (mvn clean package).
+- **Trivy FS Scan:** Scans source code and pom.xml for vulnerable dependencies before the build artifact is finalized.
+- **SonarQube Scan:** Performs deep code analysis. The pipeline **pauses** here until the Quality Gate returns a PASS status.
+- **Docker Build & Scan:** Builds the container image and immediately scans the OS layers for vulnerabilities using Trivy.
+- **Push:** Uploads the verified, secure image to Docker Hub.
+- **Deploy:** Applies the Kubernetes manifests to update the application in the webapps namespace.
+
+**💡 Challenges & Troubleshooting (STAR Method)**
+
+These are real-world issues encountered during the engineering of this pipeline.
+
+**🔴 Issue 1: The "Hanging" Runner (Timeout)**
+
+- **Symptom:** The pipeline would freeze indefinitely during the apt-get install step, eventually timing out after 6 hours.
+- **Root Cause:** The runner attempted to install man-db and other packages that triggered interactive CLI popups (e.g., _"Do you want to restart services?"_), waiting for user input that could never arrive.
+- **Resolution:** Enforced non-interactive mode in the install command.
+
+Bash
+
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends unzip jq
+
+**🔴 Issue 2: Missing Dependencies on Bare Metal**
+
+- **Symptom:** SonarQube action failed with Unable to locate executable file: unzip.
+- **Context:** Unlike GitHub-hosted runners which come pre-loaded with tools, bare-metal Ubuntu runners are minimal.
+- **Resolution:** Added a dedicated **"Install Utilities"** step at the pipeline initialization to ensure unzip is present before the Sonar action triggers.
+
+**🔴 Issue 3: Docker Context Errors**
+
+- **Symptom:** docker build failed, claiming it could not find the file context.
+- **Resolution:** Explicitly defined the build context as the current directory (.) in the build command.
+
+Bash
+
+docker build -t realdrager/boardgame:latest .
+
+**📊 Artifacts & Reports**
+
+For audit and compliance, the pipeline generates:
+
+- 📄 **trivy-fs-report.html**: File system vulnerability report.
+- 📄 **trivy-image-report.html**: Container image vulnerability report.
+
+**🚀 How to Run**
+
+- **Clone** this repository.
+- **Configure Secrets** in your GitHub repository settings.
+- **Push** a change to the main branch to trigger the workflow.
+- **Monitor** the "Actions" tab in GitHub for step-by-step execution.
+- **Access** the application:
+
+Bash
+
+kubectl get svc -n webapps
+
+\# Open the External-IP or NodePort in your browser
